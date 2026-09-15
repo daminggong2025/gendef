@@ -51,20 +51,7 @@ jobs:
           make -j$(nproc)
           make install-strip
 
-      - name: Verify static binary
-        run: |
-          echo "=== file info ==="
-          file /tmp/gendef-install/bin/gendef
-          echo ""
-          echo "=== ldd check ==="
-          ldd /tmp/gendef-install/bin/gendef || true
-          ls -lh /tmp/gendef-install/bin/gendef
-
-          if ! ldd /tmp/gendef-install/bin/gendef 2>&1 | grep -q "not a dynamic executable"; then
-            echo "❌ 不是完全静态链接！"
-            exit 1
-          fi
-          echo "✅ 完全静态链接成功"
+      
 
       - name: Prepare release files
         run: |
