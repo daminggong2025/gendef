@@ -12,54 +12,30 @@ permissions:
 jobs:
   build-and-release:
     name: Build static gendef and create Release
-    runs-on: ubuntu-latest
-    container:
-      image: alpine:3.20
-
+    runs-on: alpine-latest
     steps:
       - name: Install build tools
         run: |
-          apk add --no-cache \
-            build-base \
-            autoconf \
-            automake \
-            libtool \
-            pkgconf \
-            git \
-            file \
-            binutils
+          apk add build-base
 
       - name: Checkout mingw-w64 source
         uses: actions/checkout@v4
         with:
           repository: mingw-w64/mingw-w64
           path: mingw-w64
-          # 可选固定版本
-          # ref: v13.0.0
+          ref: v14.0.0
 
       - name: Configure & Build (fully static)
         working-directory: mingw-w64/mingw-w64-tools/gendef
-        run: |
-          mkdir -p build
-          cd build
-
-          export CFLAGS="-Os -static -ffunction-sections -fdata-sections"
-          export LDFLAGS="-static -Wl,--gc-sections -s"
-
+        run: |   
           ../configure --prefix=/tmp/gendef-install CFLAGS="-static-libgcc -static-libstdc++ -static"
-
           make -j$(nproc)
-          make install-strip
-
-      
+          make install      
 
       - name: Prepare release files
         run: |
           mkdir -p release
-          cp /tmp/gendef-install/bin/gendef release/gendef-linux-x86_64-static
-          # 可选：再生成一个压缩包
-          cd release
-          tar -czf gendef-linux-x86_64-static.tar.gz gendef-linux-x86_64-static
+          cp /tmp/gendef-install/bin/gendef release/gendef
           sha256sum gendef-linux-x86_64-static* > SHA256SUMS
 
       - name: Create Release and Upload Assets
