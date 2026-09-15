@@ -1,4 +1,4 @@
-name: Build static gendef (Alpine musl)
+name: Build gendef
 
 on:
   push:
@@ -7,76 +7,32 @@ on:
   workflow_dispatch:          # 支持手动触发
 
 jobs:
-  build-static:
-    name: Build fully static gendef
-    runs-on: ubuntu-latest
-    container:
-      image: alpine:3.20      # 使用 Alpine（musl libc）
-
+  build-linux:
+    name: 编译GenDef (Alpine)
+    runs-on: alpine-latest
     steps:
-      - name: Install build tools
-        run: |
-          apk add --no-cache \
-            build-base \
-            autoconf \
-            automake \
-            libtool \
-            pkgconf \
-            git \
-            file \
-            binutils
-
-      - name: Checkout mingw-w64 source
+      - name: Checkout mingw-w64
         uses: actions/checkout@v4
         with:
           repository: mingw-w64/mingw-w64
           path: mingw-w64
-          # 可选：固定版本
-          # ref: v13.0.0
+          ref: v14.0.0
 
-      - name: Configure & Build (fully static)
+      - name: 安装依赖
+        run: |
+          sudo apk update
+          sudo apk add build-base
+
+      - name: Configure & Build gendef
         working-directory: mingw-w64/mingw-w64-tools/gendef
         run: |
-          mkdir -p build
-          cd build
-
-          # 全静态编译关键参数
-          export CFLAGS="-Os -static -ffunction-sections -fdata-sections"
-          export LDFLAGS="-static -Wl,--gc-sections -s"
-
-          ../configure \
-            --prefix=/tmp/gendef-install \
-            --disable-shared \
-            --enable-static
-
+          ./configure --prefix=$GITHUB_WORKSPACE/install
           make -j$(nproc)
           make install-strip
 
-      - name: Verify static binary
-        run: |
-          echo "=== file info ==="
-          file /tmp/gendef-install/bin/gendef
-
-          echo ""
-          echo "=== ldd (应该显示 not a dynamic executable) ==="
-          ldd /tmp/gendef-install/bin/gendef || true
-
-          echo ""
-          echo "=== size ==="
-          ls -lh /tmp/gendef-install/bin/gendef
-
-          # 强制检查是否真的是静态链接
-          if ldd /tmp/gendef-install/bin/gendef 2>&1 | grep -q "not a dynamic executable"; then
-            echo "✅ 成功：完全静态链接，无任何动态库依赖"
-          else
-            echo "❌ 失败：仍然有动态库依赖"
-            ldd /tmp/gendef-install/bin/gendef
-            exit 1
-          fi
-
-      - name: Upload artifact
+      - name: Upload Linux binary
         uses: actions/upload-artifact@v4
         with:
-          name: gendef-static-linux-x86_64
-          path: /tmp/gendef-install/bin/gendef
+          name: gendef-linux-x86_64
+          path: install/bin/gendef
           if-no-files-found: error
