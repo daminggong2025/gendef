@@ -39,9 +39,10 @@ jobs:
       - name: 创建Release资源
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name }}
+          #tag_name: ${{ github.ref_name }}
           name: gendef
-          body: 
+          body: |
+            全静态 gendef
           files: |
             release/gendef
           draft: false
