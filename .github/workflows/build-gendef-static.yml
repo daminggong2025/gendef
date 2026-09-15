@@ -30,7 +30,7 @@ jobs:
       - name: Configure & Build (fully static)
         working-directory: mingw-w64/mingw-w64-tools/gendef
         run: |   
-          ../configure --prefix=/tmp/gendef-install CFLAGS="-static-libgcc -static-libstdc++ -static"
+          ./configure --prefix=/tmp/gendef-install CFLAGS="-static-libgcc -static-libstdc++ -static"
           make -j$(nproc)
           make install      
 
@@ -38,28 +38,14 @@ jobs:
         run: |
           mkdir -p release
           cp /tmp/gendef-install/bin/gendef release/gendef
-          sha256sum gendef-linux-x86_64-static* > SHA256SUMS
-
       - name: Create Release and Upload Assets
         uses: softprops/action-gh-release@v2
         with:
-          # 如果是手动触发且没有 tag，会自动创建一个 draft 或根据输入创建
           tag_name: ${{ github.ref_name }}
           name: gendef ${{ github.ref_name }}
-          body: |
-            ## Fully static gendef (musl)
-            
-            - Built with Alpine Linux + musl
-            - Completely static linked (no shared library dependencies)
-            - Can run on almost any Linux distribution
-            
-            ### Files
-            - `gendef-linux-x86_64-static` : 可直接运行的二进制
-            - `gendef-linux-x86_64-static.tar.gz` : 压缩包
+          body: 
           files: |
-            release/gendef-linux-x86_64-static
-            release/gendef-linux-x86_64-static.tar.gz
-            release/SHA256SUMS
+            release/gendef
           draft: false
           prerelease: false
         env:
