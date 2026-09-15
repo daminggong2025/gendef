@@ -12,7 +12,9 @@ permissions:
 jobs:
   build-and-release:
     name: Build static gendef and create Release
-    runs-on: alpine-latest
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3.22 
     steps:
       - name: Install build tools
         run: |
