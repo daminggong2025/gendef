@@ -1,38 +1,104 @@
-name: Build gendef
+name: Build static gendef + Auto Release
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-  workflow_dispatch:          # 支持手动触发
+    tags:
+      - 'v*'          # 推送 v1.0.0、v13.0.0 这种标签时自动发布
+  workflow_dispatch:  # 支持手动触发
+
+permissions:
+  contents: write     # 必须有这个权限才能创建 Release
 
 jobs:
-  build-linux:
-    name: 编译GenDef (Alpine)
-    runs-on: alpine-latest
+  build-and-release:
+    name: Build static gendef and create Release
+    runs-on: ubuntu-latest
+    container:
+      image: alpine:3.20
+
     steps:
-      - name: Checkout mingw-w64
+      - name: Install build tools
+        run: |
+          apk add --no-cache \
+            build-base \
+            autoconf \
+            automake \
+            libtool \
+            pkgconf \
+            git \
+            file \
+            binutils
+
+      - name: Checkout mingw-w64 source
         uses: actions/checkout@v4
         with:
           repository: mingw-w64/mingw-w64
           path: mingw-w64
-          ref: v14.0.0
+          # 可选固定版本
+          # ref: v13.0.0
 
-      - name: 安装依赖
-        run: |
-          sudo apk update
-          sudo apk add build-base
-
-      - name: Configure & Build gendef
+      - name: Configure & Build (fully static)
         working-directory: mingw-w64/mingw-w64-tools/gendef
         run: |
-          ./configure --prefix=$GITHUB_WORKSPACE/install
+          mkdir -p build
+          cd build
+
+          export CFLAGS="-Os -static -ffunction-sections -fdata-sections"
+          export LDFLAGS="-static -Wl,--gc-sections -s"
+
+          ../configure \
+            --prefix=/tmp/gendef-install \
+            --disable-shared \
+            --enable-static
+
           make -j$(nproc)
           make install-strip
 
-      - name: Upload Linux binary
-        uses: actions/upload-artifact@v4
+      - name: Verify static binary
+        run: |
+          echo "=== file info ==="
+          file /tmp/gendef-install/bin/gendef
+          echo ""
+          echo "=== ldd check ==="
+          ldd /tmp/gendef-install/bin/gendef || true
+          ls -lh /tmp/gendef-install/bin/gendef
+
+          if ! ldd /tmp/gendef-install/bin/gendef 2>&1 | grep -q "not a dynamic executable"; then
+            echo "❌ 不是完全静态链接！"
+            exit 1
+          fi
+          echo "✅ 完全静态链接成功"
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          cp /tmp/gendef-install/bin/gendef release/gendef-linux-x86_64-static
+          # 可选：再生成一个压缩包
+          cd release
+          tar -czf gendef-linux-x86_64-static.tar.gz gendef-linux-x86_64-static
+          sha256sum gendef-linux-x86_64-static* > SHA256SUMS
+
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
         with:
-          name: gendef-linux-x86_64
-          path: install/bin/gendef
-          if-no-files-found: error
+          # 如果是手动触发且没有 tag，会自动创建一个 draft 或根据输入创建
+          tag_name: ${{ github.ref_name }}
+          name: gendef ${{ github.ref_name }}
+          body: |
+            ## Fully static gendef (musl)
+            
+            - Built with Alpine Linux + musl
+            - Completely static linked (no shared library dependencies)
+            - Can run on almost any Linux distribution
+            
+            ### Files
+            - `gendef-linux-x86_64-static` : 可直接运行的二进制
+            - `gendef-linux-x86_64-static.tar.gz` : 压缩包
+          files: |
+            release/gendef-linux-x86_64-static
+            release/gendef-linux-x86_64-static.tar.gz
+            release/SHA256SUMS
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
