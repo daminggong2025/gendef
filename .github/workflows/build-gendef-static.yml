@@ -36,13 +36,15 @@ jobs:
         run: |
           mkdir -p release
           cp /tmp/gendef-install/bin/gendef release/gendef
-      
-      - name: Upload Artifact (on branch push)
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
-        uses: actions/upload-artifact@v4
+      - name: 创建Release资源
+        uses: softprops/action-gh-release@v2
         with:
-          name: gendef-static-linux-x86_64
-          path: |
+          name: gendef
+          body: 
+          files: |
             release/gendef
+          draft: false
+          prerelease: false
+      
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
