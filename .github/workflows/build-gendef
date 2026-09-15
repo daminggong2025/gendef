@@ -1,0 +1,89 @@
+name: Build gendef
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+  workflow_dispatch:          # 支持手动触发
+
+jobs:
+  build-linux:
+    name: Build gendef (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout mingw-w64
+        uses: actions/checkout@v4
+        with:
+          repository: mingw-w64/mingw-w64
+          path: mingw-w64
+          # 如果想固定某个版本，可以加：
+          # ref: v13.0.0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config
+
+      - name: Configure & Build gendef
+        working-directory: mingw-w64/mingw-w64-tools/gendef
+        run: |
+          mkdir -p build
+          cd build
+          ../configure --prefix=$GITHUB_WORKSPACE/install
+          make -j$(nproc)
+          make install-strip
+
+      - name: Upload Linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: gendef-linux-x86_64
+          path: install/bin/gendef
+          if-no-files-found: error
+
+  # 可选：交叉编译 Windows 版本（.exe）
+  build-windows:
+    name: Build gendef (Windows x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout mingw-w64
+        uses: actions/checkout@v4
+        with:
+          repository: mingw-w64/mingw-w64
+          path: mingw-w64
+
+      - name: Install MinGW toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            mingw-w64 \
+            gcc-mingw-w64-x86-64
+
+      - name: Configure & Build gendef (cross)
+        working-directory: mingw-w64/mingw-w64-tools/gendef
+        run: |
+          mkdir -p build-win
+          cd build-win
+          ../configure \
+            --host=x86_64-w64-mingw32 \
+            --prefix=$GITHUB_WORKSPACE/install-win \
+            CFLAGS="-O2 -s" \
+            LDFLAGS="-s"
+          make -j$(nproc)
+          make install-strip
+
+      - name: Upload Windows binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: gendef-windows-x86_64
+          path: install-win/bin/gendef.exe
+          if-no-files-found: error
