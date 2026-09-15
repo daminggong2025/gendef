@@ -1,52 +1,48 @@
-name: Build static gendef + Auto Release
+name: 编译musl版本的gendef
 
 on:
   push:
     tags:
-      - 'v*'          # 推送 v1.0.0、v13.0.0 这种标签时自动发布
-  workflow_dispatch:  # 支持手动触发
+      - 'v*'
+  workflow_dispatch:
 
 permissions:
-  contents: write     # 必须有这个权限才能创建 Release
+  contents: write
 
 jobs:
   build-and-release:
-    name: Build static gendef and create Release
+    name: 编译
     runs-on: ubuntu-latest
     container:
       image: alpine:3.22 
     steps:
-      - name: Install build tools
-        run: |
-          apk add build-base
-
-      - name: Checkout mingw-w64 source
+      - name: 安装编译工具
+        run: apk add build-base
+      - name: 克隆代码
         uses: actions/checkout@v4
         with:
           repository: mingw-w64/mingw-w64
           path: mingw-w64
           ref: v14.0.0
 
-      - name: Configure & Build (fully static)
+      - name: 编译代码
         working-directory: mingw-w64/mingw-w64-tools/gendef
         run: |   
           ./configure --prefix=/tmp/gendef-install CFLAGS="-static-libgcc -static-libstdc++ -static"
           make -j$(nproc)
           make install      
 
-      - name: Prepare release files
+      - name: 制作发布包
         run: |
           mkdir -p release
           cp /tmp/gendef-install/bin/gendef release/gendef
-      - name: Create Release and Upload Assets
-        uses: softprops/action-gh-release@v2
+      
+      - name: Upload Artifact (on branch push)
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.ref_name }}
-          name: gendef ${{ github.ref_name }}
-          body: 
-          files: |
+          name: gendef-static-linux-x86_64
+          path: |
             release/gendef
-          draft: false
-          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
