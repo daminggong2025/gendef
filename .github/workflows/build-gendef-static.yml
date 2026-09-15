@@ -46,7 +46,7 @@ jobs:
           export CFLAGS="-Os -static -ffunction-sections -fdata-sections"
           export LDFLAGS="-static -Wl,--gc-sections -s"
 
-          ../configure --prefix=/tmp/gendef-install --program-prefix=x86_64-w64-mingw32- CFLAGS="-static-libgcc -static-libstdc++ -static"
+          ../configure --prefix=/tmp/gendef-install CFLAGS="-static-libgcc -static-libstdc++ -static"
 
           make -j$(nproc)
           make install-strip
