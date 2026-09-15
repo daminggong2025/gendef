@@ -1,36 +1,89 @@
-# This is a basic workflow to help you get started with Actions
+name: Build gendef
 
-name: CI
-
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the "main" branch
   push:
-    branches: [ "main" ]
+    branches: [ main, master ]
   pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:          # 支持手动触发
 
-  # Allows you to run this workflow manually from the Actions tab
-  workflow_dispatch:
-
-# A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  # This workflow contains a single job called "build"
-  build:
-    # The type of runner that the job will run on
+  build-linux:
+    name: Build gendef (Linux)
     runs-on: ubuntu-latest
-
-    # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v4
+      - name: Checkout mingw-w64
+        uses: actions/checkout@v4
+        with:
+          repository: mingw-w64/mingw-w64
+          path: mingw-w64
+          # 如果想固定某个版本，可以加：
+          # ref: v13.0.0
 
-      # Runs a single command using the runners shell
-      - name: Run a one-line script
-        run: echo Hello, world!
-
-      # Runs a set of commands using the runners shell
-      - name: Run a multi-line script
+      - name: Install build dependencies
         run: |
-          echo Add other actions to build,
-          echo test, and deploy your project.
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config
+
+      - name: Configure & Build gendef
+        working-directory: mingw-w64/mingw-w64-tools/gendef
+        run: |
+          mkdir -p build
+          cd build
+          ../configure --prefix=$GITHUB_WORKSPACE/install
+          make -j$(nproc)
+          make install-strip
+
+      - name: Upload Linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: gendef-linux-x86_64
+          path: install/bin/gendef
+          if-no-files-found: error
+
+  # 可选：交叉编译 Windows 版本（.exe）
+  build-windows:
+    name: Build gendef (Windows x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout mingw-w64
+        uses: actions/checkout@v4
+        with:
+          repository: mingw-w64/mingw-w64
+          path: mingw-w64
+
+      - name: Install MinGW toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            mingw-w64 \
+            gcc-mingw-w64-x86-64
+
+      - name: Configure & Build gendef (cross)
+        working-directory: mingw-w64/mingw-w64-tools/gendef
+        run: |
+          mkdir -p build-win
+          cd build-win
+          ../configure \
+            --host=x86_64-w64-mingw32 \
+            --prefix=$GITHUB_WORKSPACE/install-win \
+            CFLAGS="-O2 -s" \
+            LDFLAGS="-s"
+          make -j$(nproc)
+          make install-strip
+
+      - name: Upload Windows binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: gendef-windows-x86_64
+          path: install-win/bin/gendef.exe
+          if-no-files-found: error
